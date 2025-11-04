@@ -31,7 +31,6 @@ class Program
         {
             if (_config.WebSocketServer != null)
             {
-                Console.WriteLine($"Broadcasting input data via WebSocket... {caps.DeviceType} {caps.ProductName} {caps.AdditionalInfo}, {caps.TotalAxes}, {caps.TotalButtons}");
                 _config.WebSocketServer.BroadcastInputDataAsync(state, caps).Wait();
             }
         });
