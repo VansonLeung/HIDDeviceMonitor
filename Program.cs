@@ -19,7 +19,7 @@ class Program
         bool showMenu = args.Any(a => a == "-m" || a == "--menu");
         bool useKeyboard = args.Any(a => a.ToLower() == "keyboard" || a.ToLower() == "--keyboard");
         bool enableDamping = args.Any(a => a.ToLower() == "--damping");
-        bool enableWebSocket = true; //args.Any(a => a.ToLower() == "websocket" || a.ToLower() == "--websocket");
+        bool enableWebSocket = args.Any(a => a.ToLower() == "websocket" || a.ToLower() == "--websocket");
         int webSocketPort = 8080;
 
         // Parse WebSocket port if specified
@@ -27,6 +27,17 @@ class Program
         if (portArg != null && int.TryParse(portArg.Split('=')[1], out int port))
         {
             webSocketPort = port;
+        }
+
+        // Start WebSocket server if requested
+        WebSocketServer? webSocketServer = null;
+        if (enableWebSocket)
+        {
+            webSocketServer = StartWebSocketServer(webSocketPort);
+            if (webSocketServer == null)
+            {
+                Console.WriteLine("❌ Failed to start WebSocket server. Continuing without WebSocket support.");
+            }
         }
 
         // Handle help flag
@@ -41,16 +52,16 @@ class Program
         {
             if (useKeyboard)
             {
-                RunKeyboardMode(enableDamping, enableWebSocket, webSocketPort);
+                RunKeyboardMode(enableDamping, webSocketServer, webSocketPort);
                 return;
             }
 
-            RunHidDeviceMode(enableWebSocket, webSocketPort);
+            RunHidDeviceMode(webSocketServer, webSocketPort);
             return;
         }
 
         // Default behavior: auto-connect to Simagic device
-        RunAutoConnectMode(enableWebSocket, webSocketPort);
+        RunAutoConnectMode(webSocketServer, webSocketPort);
     }
 
     static void ShowHelp()
@@ -84,20 +95,9 @@ class Program
         Console.WriteLine("  Status API available at http://localhost:PORT/api/status");
     }
 
-    static void RunAutoConnectMode(bool enableWebSocket, int webSocketPort)
+    static void RunAutoConnectMode(WebSocketServer? webSocketServer, int webSocketPort)
     {
         Console.WriteLine("🔍 Auto-connecting to Simagic steering wheel...");
-
-        WebSocketServer? webSocketServer = null;
-
-        if (enableWebSocket)
-        {
-            webSocketServer = StartWebSocketServer(webSocketPort);
-            if (webSocketServer == null)
-            {
-                Console.WriteLine("❌ Failed to start WebSocket server. Continuing without WebSocket support.");
-            }
-        }
 
         var deviceList = DeviceList.Local;
         var devices = deviceList.GetHidDevices().ToArray();
@@ -168,17 +168,10 @@ class Program
         return null;
     }
 
-    static void RunKeyboardMode(bool enableDamping, bool enableWebSocket, int webSocketPort)
+    static void RunKeyboardMode(bool enableDamping, WebSocketServer? webSocketServer, int webSocketPort)
     {
         Console.WriteLine("🎹 Keyboard Simulation Mode");
         Console.WriteLine($"Damping: {(enableDamping ? "Enabled" : "Disabled")}\n");
-
-        WebSocketServer? webSocketServer = null;
-
-        if (enableWebSocket)
-        {
-            webSocketServer = StartWebSocketServer(webSocketPort);
-        }
 
         using var keyboardSource = new KeyboardInputSource(enableDamping);
 
@@ -188,18 +181,11 @@ class Program
             return;
         }
 
-        MonitorInputSource(keyboardSource, true, webSocketServer);
+        MonitorInputSource(keyboardSource, true, webSocketServer, webSocketPort);
     }
 
-    static void RunHidDeviceMode(bool enableWebSocket, int webSocketPort)
+    static void RunHidDeviceMode(WebSocketServer? webSocketServer, int webSocketPort)
     {
-        WebSocketServer? webSocketServer = null;
-
-        if (enableWebSocket)
-        {
-            webSocketServer = StartWebSocketServer(webSocketPort);
-        }
-
         var deviceList = DeviceList.Local;
 
         while (true)
@@ -244,7 +230,7 @@ class Program
             }
             else if (input == "k")
             {
-                RunKeyboardMode(enableDamping: true, enableWebSocket, webSocketPort);
+                RunKeyboardMode(enableDamping: true, webSocketServer, webSocketPort);
                 continue; // Go back to menu instead of exiting
             }
             else if (input == "a")
@@ -256,7 +242,7 @@ class Program
                 using var hidSource = new HidInputSource(devices[index], index);
                 if (hidSource.InitializeAsync().Result)
                 {
-                    MonitorInputSource(hidSource, false, webSocketServer);
+                    MonitorInputSource(hidSource, false, webSocketServer, webSocketPort);
                 }
             }
             else
@@ -268,9 +254,16 @@ class Program
         Console.WriteLine("\nExiting...");
     }
 
-    static void MonitorInputSource(InputSource source, bool isKeyboardMode, WebSocketServer? webSocketServer = null)
+    static void MonitorInputSource(InputSource source, bool isKeyboardMode, WebSocketServer? webSocketServer = null, int webSocketPort = 8080)
     {
         var caps = source.GetCapabilities();
+
+        // Show WebSocket status before clearing screen
+        if (webSocketServer != null && webSocketServer.IsRunning)
+        {
+            Console.WriteLine($"🌐 WebSocket server is running on ws://localhost:{webSocketPort}/");
+        }
+
         DisplayManager.ShowDeviceInfo(source, caps, false); // Initially not in debug mode
 
         var cancellationSource = new CancellationTokenSource();
@@ -308,57 +301,8 @@ class Program
             });
         }
 
-        int displayStartLine = Console.CursorTop;
-        var lastUpdateTime = DateTime.Now;
-
-        while (!cancellationSource.Token.IsCancellationRequested && source.IsConnected)
-        {
-            try
-            {
-                source.Poll();
-                var state = source.GetCurrentState();
-
-                // Broadcast to WebSocket clients if server is available
-                if (webSocketServer != null)
-                {
-                    webSocketServer.BroadcastInputDataAsync(state, caps).Wait();
-                }
-
-                // Throttle updates to avoid flickering
-                var now = DateTime.Now;
-                if ((now - lastUpdateTime).TotalMilliseconds < 100) // Increased from 50ms
-                {
-                    Thread.Sleep(20);
-                    continue;
-                }
-                lastUpdateTime = now;
-
-                // Clear screen and redraw everything instead of cursor positioning
-                Console.SetCursorPosition(0, displayStartLine);
-                Console.WriteLine($"🕐 {now:HH:mm:ss.fff} | Device: {source.Name}{new string(' ', 30)}");
-                Console.WriteLine();
-
-                DisplayManager.ShowDeviceInfo(source, caps, debugMode);
-                DisplayManager.ShowInputState(state, caps, debugMode);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"\n❌ Error: {ex.Message}{new string(' ', 50)}");
-                break;
-            }
-        }
-
-        // For keyboard mode, show quit message
-        if (isKeyboardMode)
-        {
-            Console.WriteLine("\n\n✅ Stopped monitoring. Press any key to continue...");
-            Console.ReadKey();
-        }
-        else
-        {
-            Console.WriteLine("\n\n✅ Stopped monitoring. Press any key to continue...");
-            Console.ReadKey();
-        }
+        // Use common monitoring loop
+        MonitorSources(new[] { (source, caps) }, cancellationSource, webSocketServer, () => debugMode, isKeyboardMode);
     }
 
     static void MonitorAllDevices(HidDevice[] devices, WebSocketServer? webSocketServer = null)
@@ -367,7 +311,7 @@ class Program
         Console.WriteLine("=== Monitoring ALL Devices ===");
         Console.WriteLine("Press any key to stop monitoring\n");
 
-        var sources = new List<(HidInputSource source, DeviceCapabilities caps)>();
+        var sources = new List<(InputSource source, DeviceCapabilities caps)>();
 
         try
         {
@@ -402,60 +346,8 @@ class Program
                 cancellationSource.Cancel();
             });
 
-            int displayStartLine = Console.CursorTop;
-            var lastUpdateTime = DateTime.Now;
-
-            while (!cancellationSource.Token.IsCancellationRequested)
-            {
-                bool hasData = false;
-
-                foreach (var (source, caps) in sources)
-                {
-                    try
-                    {
-                        source.Poll();
-                        var state = source.GetCurrentState();
-
-                        // Broadcast to WebSocket clients if server is available
-                        if (webSocketServer != null && state.RawData.Length > 0)
-                        {
-                            webSocketServer.BroadcastInputDataAsync(state, caps).Wait();
-                        }
-
-                        if (state.RawData.Length > 0)
-                        {
-                            hasData = true;
-
-                            var now = DateTime.Now;
-                            if ((now - lastUpdateTime).TotalMilliseconds < 50)
-                            {
-                                continue;
-                            }
-                            lastUpdateTime = now;
-
-                            Console.SetCursorPosition(0, displayStartLine);
-                            Console.WriteLine($"🕐 {now:HH:mm:ss.fff} | Device: {source.Name}{new string(' ', 30)}");
-                            Console.WriteLine();
-
-                            DisplayManager.ShowInputState(state, caps, false);
-
-                            for (int i = 0; i < 2; i++)
-                            {
-                                Console.WriteLine(new string(' ', 80));
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"\n❌ Error: {ex.Message}{new string(' ', 40)}");
-                    }
-                }
-
-                if (!hasData)
-                {
-                    Thread.Sleep(10);
-                }
-            }
+            // Use common monitoring loop for all devices
+            MonitorSources(sources.ToArray(), cancellationSource, webSocketServer, () => false, false);
         }
         finally
         {
@@ -467,5 +359,100 @@ class Program
 
         Console.WriteLine("\n\n✅ Stopped monitoring. Press any key to continue...");
         Console.ReadKey();
+    }
+
+    static void MonitorSources((InputSource source, DeviceCapabilities caps)[] sourcePairs, CancellationTokenSource cancellationSource, WebSocketServer? webSocketServer, Func<bool> getDebugMode, bool isKeyboardMode)
+    {
+        var lastUpdateTime = DateTime.Now;
+        int currentDeviceIndex = 0;
+        var lastDeviceSwitch = DateTime.Now;
+
+        while (!cancellationSource.Token.IsCancellationRequested)
+        {
+            bool hasActiveSources = false;
+
+            // For multiple devices, cycle through them
+            if (sourcePairs.Length > 1)
+            {
+                var now = DateTime.Now;
+                if ((now - lastDeviceSwitch).TotalSeconds >= 2) // Switch every 2 seconds
+                {
+                    currentDeviceIndex = (currentDeviceIndex + 1) % sourcePairs.Length;
+                    lastDeviceSwitch = now;
+                }
+            }
+
+            var (source, caps) = sourcePairs[currentDeviceIndex];
+
+            if (source.IsConnected)
+            {
+                hasActiveSources = true;
+
+                try
+                {
+                    source.Poll();
+                    var state = source.GetCurrentState();
+
+                    // Broadcast to WebSocket clients if server is available
+                    if (webSocketServer != null)
+                    {
+                        webSocketServer.BroadcastInputDataAsync(state, caps).Wait();
+                    }
+
+                    // Throttle updates to avoid flickering
+                    var now = DateTime.Now;
+                    if ((now - lastUpdateTime).TotalMilliseconds < 100)
+                    {
+                        Thread.Sleep(20);
+                        continue;
+                    }
+                    lastUpdateTime = now;
+
+                    // Clear screen and redraw everything
+                    Console.Clear();
+
+                    if (sourcePairs.Length == 1)
+                    {
+                        // Single device mode - show device info
+                        DisplayManager.ShowDeviceInfo(source, caps, getDebugMode());
+                    }
+                    else
+                    {
+                        // Multi-device mode - show current device header
+                        Console.WriteLine($"=== Monitoring: {source.Name} ({currentDeviceIndex + 1}/{sourcePairs.Length}) ===");
+                        Console.WriteLine($"Type: {source.DeviceType}");
+                        if (!string.IsNullOrEmpty(caps.AdditionalInfo))
+                        {
+                            Console.WriteLine($"ℹ️  {caps.AdditionalInfo}");
+                        }
+                        Console.WriteLine();
+                    }
+
+                    DisplayManager.ShowInputState(state, caps, getDebugMode());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\n❌ Error: {ex.Message}{new string(' ', 50)}");
+                    break;
+                }
+            }
+
+            if (!hasActiveSources)
+            {
+                Thread.Sleep(100);
+            }
+        }
+
+        // Show quit message
+        if (isKeyboardMode)
+        {
+            Console.WriteLine("\n\n✅ Stopped monitoring. Press any key to continue...");
+            Console.ReadKey();
+        }
+        else
+        {
+            Console.WriteLine("\n\n✅ Stopped monitoring. Press any key to continue...");
+            Console.ReadKey();
+        }
     }
 }
