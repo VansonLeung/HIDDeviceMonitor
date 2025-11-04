@@ -70,6 +70,27 @@ public class DeviceCapabilities
     public List<AxisCapability> Axes { get; set; } = new();
     public List<ButtonCapability> Buttons { get; set; } = new();
     public string AdditionalInfo { get; set; } = "";
+    public DeviceType DeviceType { get; set; } = DeviceType.Unknown;
+    public string Manufacturer { get; set; } = "";
+    public string ProductName { get; set; } = "";
+    public int VendorId { get; set; }
+    public int ProductId { get; set; }
+    public int UsagePage { get; set; }
+    public int UsageId { get; set; }
+}
+
+/// <summary>
+/// HID device type classification
+/// </summary>
+public enum DeviceType
+{
+    Unknown,
+    SteeringWheel,      // Racing wheel with steering axis
+    PedalController,    // Dedicated pedal set (throttle, brake, clutch)
+    WheelAndPedals,     // Integrated wheel + pedals
+    Gamepad,           // Standard game controller
+    Joystick,          // Flight stick or joystick
+    Other
 }
 
 public class AxisCapability

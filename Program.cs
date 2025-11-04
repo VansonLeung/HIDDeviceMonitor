@@ -31,7 +31,6 @@ class Program
         {
             if (_config.WebSocketServer != null)
             {
-                Console.WriteLine("Broadcasting input data to WebSocket clients...");
                 _config.WebSocketServer.BroadcastInputDataAsync(state, caps).Wait();
             }
         });

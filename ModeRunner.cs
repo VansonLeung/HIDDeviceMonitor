@@ -276,9 +276,9 @@ static class ModeRunner
 
                     // Throttle updates to avoid flickering
                     var now = DateTime.Now;
-                    if ((now - lastUpdateTime).TotalMilliseconds < 100)
+                    if ((now - lastUpdateTime).TotalMilliseconds < 30)
                     {
-                        Thread.Sleep(20);
+                        Thread.Sleep(10);
                         continue;
                     }
                     lastUpdateTime = now;

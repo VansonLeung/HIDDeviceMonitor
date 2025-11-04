@@ -44,7 +44,23 @@ static class DeviceManager
         for (int i = 0; i < devices.Length; i++)
         {
             var device = devices[i];
-            Console.WriteLine($"[{i}] {device.GetManufacturer()} - {device.GetProductName()}");
+            var manufacturer = device.GetManufacturer() ?? "Unknown";
+            var productName = device.GetProductName() ?? "Unknown";
+
+            Console.WriteLine($"[{i}] {manufacturer} - {productName}");
+
+            // Try to classify the device type without opening it
+            try
+            {
+                var capabilities = DeviceClassifier.ParseDeviceCapabilities(device);
+                var deviceTypeDesc = DeviceClassifier.GetDeviceTypeDescription(capabilities.DeviceType);
+                Console.WriteLine($"    Type: {deviceTypeDesc} ({capabilities.TotalAxes} axes, {capabilities.TotalButtons} buttons)");
+            }
+            catch
+            {
+                Console.WriteLine($"    Type: Unable to determine");
+            }
+
             Console.WriteLine($"    VID: 0x{device.VendorID:X4}, PID: 0x{device.ProductID:X4}");
             Console.WriteLine($"    Path: {device.DevicePath}");
             Console.WriteLine($"    Max Input: {device.GetMaxInputReportLength()} bytes");

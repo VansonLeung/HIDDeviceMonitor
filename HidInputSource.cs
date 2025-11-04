@@ -84,12 +84,21 @@ public class HidInputSource : InputSource
 
     public override DeviceCapabilities GetCapabilities()
     {
-        return _capabilities ?? new DeviceCapabilities
+        if (_capabilities != null)
+            return _capabilities;
+
+        var defaultCapabilities = new DeviceCapabilities
         {
             TotalButtons = 0,
             TotalAxes = 0,
-            AdditionalInfo = "Device not initialized"
+            AdditionalInfo = "Device not initialized",
+            Manufacturer = "Unknown",
+            ProductName = "Unknown",
+            VendorId = 0,
+            ProductId = 0
         };
+        defaultCapabilities.DeviceType = HIDDeviceMonitor.DeviceType.Unknown;
+        return defaultCapabilities;
     }
 
     /// <summary>
@@ -268,7 +277,12 @@ public class HidInputSource : InputSource
             {
                 TotalButtons = 0,
                 TotalAxes = 0,
-                AdditionalInfo = $"VID: 0x{_device.VendorID:X4}, PID: 0x{_device.ProductID:X4}"
+                AdditionalInfo = $"VID: 0x{_device.VendorID:X4}, PID: 0x{_device.ProductID:X4}",
+                DeviceType = HIDDeviceMonitor.DeviceType.Unknown,
+                Manufacturer = _device.GetManufacturer() ?? "Unknown",
+                ProductName = _device.GetProductName() ?? "Unknown",
+                VendorId = _device.VendorID,
+                ProductId = _device.ProductID
             };
         }
 
@@ -347,14 +361,23 @@ public class HidInputSource : InputSource
             }
         }
 
-        return new DeviceCapabilities
+        var capabilities = new DeviceCapabilities
         {
             TotalButtons = buttons.Count,
             TotalAxes = axes.Count,
             Axes = axes,
             Buttons = buttons,
-            AdditionalInfo = $"VID: 0x{_device.VendorID:X4}, PID: 0x{_device.ProductID:X4}"
+            AdditionalInfo = $"VID: 0x{_device.VendorID:X4}, PID: 0x{_device.ProductID:X4}",
+            Manufacturer = _device.GetManufacturer() ?? "Unknown",
+            ProductName = _device.GetProductName() ?? "Unknown",
+            VendorId = _device.VendorID,
+            ProductId = _device.ProductID
         };
+
+        // Classify the device type
+        capabilities.DeviceType = DeviceClassifier.ClassifyDevice(_device, capabilities);
+
+        return capabilities;
     }
 
     public override void Dispose()
