@@ -31,10 +31,32 @@ dotnet run [mode] [options]
 
 ### Command Line Options
 
-- **HID Device Mode** (default): `dotnet run`
-- **Keyboard Simulation**: `dotnet run keyboard [--damping]`
-- **WebSocket Server**: `dotnet run websocket [--port=8080]`
-- **Combined Modes**: `dotnet run keyboard websocket`
+- **Auto-connect Mode** (default): `dotnet run` - Automatically connects to first available Simagic steering wheel
+- **Device Menu**: `dotnet run -m` or `dotnet run --menu` - Interactive device selection menu
+- **Keyboard Simulation**: `dotnet run --keyboard` or `dotnet run keyboard` - Use keyboard controls
+- **WebSocket Control**: `dotnet run --disable-websocket` - Disable WebSocket server
+- **Damping Control**: `dotnet run --disable-damping` - Disable input damping in keyboard mode
+- **Port Setting**: `dotnet run --port=8080` - Set WebSocket server port
+- **Help**: `dotnet run -h` or `dotnet run --help` - Show help information
+
+### Examples
+
+```bash
+# Auto-connect to first Simagic device (default)
+dotnet run
+
+# Show device selection menu
+dotnet run --menu
+
+# Keyboard simulation without damping
+dotnet run --keyboard --disable-damping
+
+# WebSocket server on custom port
+dotnet run --port=3000
+
+# Keyboard mode without WebSocket
+dotnet run keyboard --disable-websocket
+```
 
 ### Quick Start Script
 
@@ -44,11 +66,15 @@ dotnet run [mode] [options]
 
 ### Main Menu Options
 
+When using `--menu` mode, you'll see an interactive menu with these options:
+
 1. **Enter device number (0-N)**: Monitor a specific device
 2. **'k'**: Switch to keyboard simulation mode
 3. **'a'**: Monitor all devices simultaneously
 4. **'r'**: Refresh device list
 5. **'q'**: Quit application
+
+**Default Behavior**: Without `--menu`, the application automatically connects to the first available Simagic steering wheel device.
 
 ### Keyboard Simulation Controls
 
@@ -61,7 +87,7 @@ dotnet run [mode] [options]
 | 1-9 | Toggle buttons 1-9 |
 | Q | Quit monitoring |
 
-**Damping Mode** (`--damping`): Gradual release of throttle/brake and steering centering.
+**Damping**: Enabled by default in keyboard mode. Use `--disable-damping` to disable gradual release and centering.
 
 ## Device Classification
 
