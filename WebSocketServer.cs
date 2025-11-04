@@ -64,9 +64,9 @@ public class WebSocketServer : IDisposable
     /// <summary>
     /// Start the WebSocket server
     /// </summary>
-    public async Task StartAsync()
+    public Task StartAsync()
     {
-        if (_isRunning) return;
+        if (_isRunning) return Task.CompletedTask;
 
         try
         {
@@ -77,6 +77,7 @@ public class WebSocketServer : IDisposable
             Console.WriteLine($"📊 Status API available at http://localhost:{_port}/api/status");
 
             _serverTask = Task.Run(() => ServerLoop(_cancellationTokenSource.Token));
+            return _serverTask;
         }
         catch (Exception ex)
         {
@@ -303,7 +304,7 @@ public class WebSocketServer : IDisposable
         var request = context.Request;
         var response = context.Response;
 
-        string filePath = request.Url.LocalPath.TrimStart('/');
+        string filePath = request.Url?.LocalPath?.TrimStart('/') ?? "index.html";
         if (string.IsNullOrEmpty(filePath)) filePath = "index.html";
 
         // Look for files in client-example directory

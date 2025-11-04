@@ -16,15 +16,15 @@ public class KeyboardInputSource : InputSource
     private int _currentSteering = 32767; // Center position
     private readonly Dictionary<int, bool> _buttonStates = new();
     private bool _isRunning = false;
-    private readonly bool _enableDamping;
+    private readonly bool _disableDamping;
 
     public override string Name => "Keyboard Simulator";
     public override string DeviceType => "Virtual Device";
     public override bool IsConnected => _isRunning;
 
-    public KeyboardInputSource(bool enableDamping = true)
+    public KeyboardInputSource(bool disableDamping)
     {
-        _enableDamping = enableDamping;
+        _disableDamping = disableDamping;
         
         // Initialize button states
         for (int i = 0; i < 10; i++)
@@ -44,7 +44,7 @@ public class KeyboardInputSource : InputSource
         Console.WriteLine("   Space - Brake (alternative)");
         Console.WriteLine("   1-9   - Buttons 1-9");
         Console.WriteLine("   Q     - Quit monitoring");
-        Console.WriteLine($"   Damping: {(_enableDamping ? "Enabled" : "Disabled")}\n");
+        Console.WriteLine($"   Damping: {(_disableDamping ? "Disabled" : "Enabled")}\n");
         
         return await Task.FromResult(true);
     }
@@ -190,7 +190,7 @@ public class KeyboardInputSource : InputSource
         if (!Console.KeyAvailable)
         {
             // Apply damping when no keys pressed
-            if (_enableDamping)
+            if (!_disableDamping)
             {
                 ApplyDamping();
             }
@@ -201,8 +201,8 @@ public class KeyboardInputSource : InputSource
         var key = keyInfo.Key;
         var keyChar = keyInfo.KeyChar;
 
-        int increment = _enableDamping ? 2000 : 65535;
-        int decrement = _enableDamping ? increment / 3 : 65535;
+        int increment = !_disableDamping ? 2000 : 65535;
+        int decrement = !_disableDamping ? increment / 3 : 65535;
 
         switch (key)
         {
@@ -213,10 +213,10 @@ public class KeyboardInputSource : InputSource
                 _currentBrake = Math.Min(65535, _currentBrake + increment);
                 break;
             case ConsoleKey.A:
-                _currentSteering = Math.Max(0, _currentSteering - (_enableDamping ? increment : 10000));
+                _currentSteering = Math.Max(0, _currentSteering - (!_disableDamping ? increment : 10000));
                 break;
             case ConsoleKey.D:
-                _currentSteering = Math.Min(65535, _currentSteering + (_enableDamping ? increment : 10000));
+                _currentSteering = Math.Min(65535, _currentSteering + (!_disableDamping ? increment : 10000));
                 break;
             case ConsoleKey.Spacebar:
                 _currentBrake = Math.Min(65535, _currentBrake + increment);
