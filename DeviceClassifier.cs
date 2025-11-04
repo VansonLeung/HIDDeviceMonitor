@@ -28,6 +28,8 @@ public static class DeviceClassifier
         int usagePage = capabilities.UsagePage;
         int usageId = capabilities.UsageId;
 
+        Console.WriteLine($"Classifying device: Usage Page = {usagePage}, Usage ID = {usageId}");
+
         switch (usagePage)
         {
             case 0x01: // Generic Desktop Controls

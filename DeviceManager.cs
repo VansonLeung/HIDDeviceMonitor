@@ -61,6 +61,7 @@ static class DeviceManager
                 Console.WriteLine($"    Type: Unable to determine");
             }
 
+
             Console.WriteLine($"    VID: 0x{device.VendorID:X4}, PID: 0x{device.ProductID:X4}");
             Console.WriteLine($"    Path: {device.DevicePath}");
             Console.WriteLine($"    Max Input: {device.GetMaxInputReportLength()} bytes");

@@ -202,7 +202,7 @@ static class ModeRunner
                     var caps = hidSource.GetCapabilities();
                     sources.Add((hidSource, caps));
                     Console.WriteLine($"✅ Opened device [{i}]: {hidSource.Name}");
-                    Console.WriteLine($"   Buttons: {caps.TotalButtons}, Axes: {caps.TotalAxes}");
+                    Console.WriteLine($"   Buttons: {caps.TotalButtons}, Axes: {caps.TotalAxes} , {caps.AdditionalInfo}, {caps.DeviceType}, {caps.ProductName}");
                 }
             }
 

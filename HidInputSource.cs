@@ -87,6 +87,8 @@ public class HidInputSource : InputSource
         if (_capabilities != null)
             return _capabilities;
 
+        Console.WriteLine("⚠️  Device capabilities not initialized, returning default values.");
+
         var defaultCapabilities = new DeviceCapabilities
         {
             TotalButtons = 0,
@@ -268,116 +270,7 @@ public class HidInputSource : InputSource
 
     private DeviceCapabilities ParseDeviceCapabilities()
     {
-        var reportDescriptor = _device.GetReportDescriptor();
-        var deviceItems = reportDescriptor.DeviceItems.FirstOrDefault();
-
-        if (deviceItems == null)
-        {
-            return new DeviceCapabilities
-            {
-                TotalButtons = 0,
-                TotalAxes = 0,
-                AdditionalInfo = $"VID: 0x{_device.VendorID:X4}, PID: 0x{_device.ProductID:X4}",
-                DeviceType = HIDDeviceMonitor.DeviceType.Unknown,
-                Manufacturer = _device.GetManufacturer() ?? "Unknown",
-                ProductName = _device.GetProductName() ?? "Unknown",
-                VendorId = _device.VendorID,
-                ProductId = _device.ProductID
-            };
-        }
-
-        var axes = new List<AxisCapability>();
-        var buttons = new List<ButtonCapability>();
-
-        // Parse axes and buttons from report descriptor  
-        var inputReport = deviceItems.InputReports.FirstOrDefault();
-        if (inputReport != null)
-        {
-            // Check if report uses Report ID (if so, descriptor offsets need +1 byte adjustment)
-            bool hasReportId = inputReport.ReportID != 0;
-            int reportIdOffset = hasReportId ? 8 : 0; // Add 8 bits (1 byte) if Report ID exists
-            
-            int currentBitOffset = 0;
-            int axisIndex = 0;
-            int buttonIndex = 0;
-            
-            foreach (var element in inputReport.DataItems)
-            {
-                // Check if this is likely a button (1-bit values) or axis (multi-bit values)
-                if (element.ElementBits == 1)
-                {
-                    // These are buttons
-                    for (int i = 0; i < element.ElementCount; i++)
-                    {
-                        int bitPos = reportIdOffset + currentBitOffset + i;
-                        buttons.Add(new ButtonCapability
-                        {
-                            Index = buttonIndex,
-                            Name = $"Button {buttonIndex + 1}",
-                            BitIndex = bitPos % 8,
-                            ByteIndex = bitPos / 8
-                        });
-                        buttonIndex++;
-                    }
-                }
-                else if (element.ElementBits > 1)
-                {
-                    // This is likely an axis
-                    string axisName = "Axis";
-                    
-                    // Try to get a nice name from usages
-                    var usages = element.Usages.GetAllValues().ToList();
-                    if (usages.Any())
-                    {
-                        axisName = usages.First().ToString()
-                            .Replace("GenericDesktop.", "")
-                            .Replace("Simulation.", "")
-                            .Replace("Game.", "");
-                    }
-                    else
-                    {
-                        axisName = $"Axis-{axisIndex}";
-                    }
-
-                    for (int i = 0; i < element.ElementCount; i++)
-                    {
-                        int bitPos = reportIdOffset + currentBitOffset + (i * element.ElementBits);
-                        axes.Add(new AxisCapability
-                        {
-                            Index = axisIndex,
-                            Name = element.ElementCount > 1 ? $"{axisName} {i + 1}" : axisName,
-                            UsageName = axisName,
-                            LogicalMin = element.LogicalMinimum,
-                            LogicalMax = element.LogicalMaximum,
-                            BitSize = element.ElementBits,
-                            BitOffset = bitPos % 8,
-                            ByteIndex = bitPos / 8
-                        });
-                        axisIndex++;
-                    }
-                }
-                
-                currentBitOffset += element.ElementCount * element.ElementBits;
-            }
-        }
-
-        var capabilities = new DeviceCapabilities
-        {
-            TotalButtons = buttons.Count,
-            TotalAxes = axes.Count,
-            Axes = axes,
-            Buttons = buttons,
-            AdditionalInfo = $"VID: 0x{_device.VendorID:X4}, PID: 0x{_device.ProductID:X4}",
-            Manufacturer = _device.GetManufacturer() ?? "Unknown",
-            ProductName = _device.GetProductName() ?? "Unknown",
-            VendorId = _device.VendorID,
-            ProductId = _device.ProductID
-        };
-
-        // Classify the device type
-        capabilities.DeviceType = DeviceClassifier.ClassifyDevice(_device, capabilities);
-
-        return capabilities;
+        return DeviceClassifier.ParseDeviceCapabilities(_device);
     }
 
     public override void Dispose()

@@ -117,7 +117,11 @@ public class WebSocketServer : IDisposable
     /// </summary>
     public async Task BroadcastInputDataAsync(InputState inputState, DeviceCapabilities capabilities)
     {
-        if (!_isRunning || _connectedClients.Count == 0) return;
+        if (!_isRunning || _connectedClients.Count == 0)
+        {
+            Console.WriteLine($"No connected clients to broadcast to. {_isRunning},  {_connectedClients.Count} ");
+            return;
+        }
 
         // Convert InputState to the expected JSON format
         var data = ConvertInputStateToJson(inputState, capabilities);
@@ -348,47 +352,85 @@ public class WebSocketServer : IDisposable
     /// </summary>
     private static object ConvertInputStateToJson(InputState inputState, DeviceCapabilities capabilities)
     {
-        // Debug: Print available axis names (only first time)
-        if (!_debugAxisNamesPrinted)
-        {
-            Console.WriteLine("\n🔍 DEBUG: Available axes in InputState:");
-            foreach (var axis in inputState.Axes)
-            {
-                Console.WriteLine($"   Key: '{axis.Key}' = {axis.Value.Value}");
-            }
-            _debugAxisNamesPrinted = true;
-        }
-
-        // Extract steering (X-axis) - try different possible names
         int steering = 32767; // Default center
-        foreach (var kvp in inputState.Axes)
-        {
-            if (kvp.Key.Contains("X-Axis") || kvp.Key.Contains("Steering"))
-            {
-                steering = kvp.Value.Value;
-                break;
-            }
-        }
-
-        // Extract throttle (Y-axis)
         int throttle = 0;
-        foreach (var kvp in inputState.Axes)
+        int brake = 0;
+
+        if (capabilities.DeviceType == DeviceType.Gamepad)
         {
-            if (kvp.Key.Contains("Y-Axis") || kvp.Key.Contains("Throttle"))
+            // Gamepad mapping (Option 2):
+            // Steering: Left Stick X (Axis 0)
+            // Throttle: Right Stick Y (Axis 3)
+            // Brake: Left Stick Y (Axis 1) - inverted
+
+            // Helper function to get axis capability by index (0-based)
+            AxisCapability? GetAxisCapability(int index)
             {
-                throttle = kvp.Value.Value;
-                break;
+                return capabilities.Axes.FirstOrDefault(a => a.Index == index);
+            }
+
+            // Steering: Left Stick X (axis index 0)
+            var steeringAxis = GetAxisCapability(0);
+            if (steeringAxis != null && inputState.Axes.TryGetValue(steeringAxis.Name, out AxisState? steeringValue))
+            {
+                int rawValue = steeringValue.Value;
+                double center = (steeringAxis.LogicalMax + steeringAxis.LogicalMin) / 2.0;
+                double range = steeringAxis.LogicalMax - steeringAxis.LogicalMin;
+                double normalized = (rawValue - center) / (range / 2.0); // -1 to 1
+                steering = (int)((normalized + 1) * 32767.5); // Map to 0-65535 centered at 32767
+            }
+
+            // Throttle: Right Stick Y (axis index 3)
+            var throttleAxis = GetAxisCapability(3);
+            if (throttleAxis != null && inputState.Axes.TryGetValue(throttleAxis.Name, out AxisState? throttleValue))
+            {
+                int rawValue = throttleValue.Value;
+                double center = (throttleAxis.LogicalMax + throttleAxis.LogicalMin) / 2.0;
+                double normalized = Math.Max(0, (center - rawValue) / (center - throttleAxis.LogicalMin)); // 0 to 1 when pushed up
+                throttle = (int)(normalized * 65535);
+            }
+
+            // Brake: Left Stick Y (axis index 1) - inverted
+            var brakeAxis = GetAxisCapability(1);
+            if (brakeAxis != null && inputState.Axes.TryGetValue(brakeAxis.Name, out AxisState? brakeValue))
+            {
+                int rawValue = brakeAxis.LogicalMax - brakeValue.Value;
+                double center = (brakeAxis.LogicalMax + brakeAxis.LogicalMin) / 2.0;
+                double normalized = Math.Max(0, (center - rawValue) / (center - brakeAxis.LogicalMin)); // 0 to 1 when pushed up
+                brake = (int)(normalized * 65535);
             }
         }
-
-        // Extract brake (Z-axis)
-        int brake = 0;
-        foreach (var kvp in inputState.Axes)
+        else
         {
-            if (kvp.Key.Contains("Z-Axis") || kvp.Key.Contains("Brake"))
+            // Original racing wheel mapping
+            // Extract steering (X-axis) - try different possible names
+            foreach (var kvp in inputState.Axes)
             {
-                brake = kvp.Value.Value;
-                break;
+                if (kvp.Key.Contains("X-Axis") || kvp.Key.Contains("Steering"))
+                {
+                    steering = kvp.Value.Value;
+                    break;
+                }
+            }
+
+            // Extract throttle (Y-axis)
+            foreach (var kvp in inputState.Axes)
+            {
+                if (kvp.Key.Contains("Y-Axis") || kvp.Key.Contains("Throttle"))
+                {
+                    throttle = kvp.Value.Value;
+                    break;
+                }
+            }
+
+            // Extract brake (Z-axis)
+            foreach (var kvp in inputState.Axes)
+            {
+                if (kvp.Key.Contains("Z-Axis") || kvp.Key.Contains("Brake"))
+                {
+                    brake = kvp.Value.Value;
+                    break;
+                }
             }
         }
 
