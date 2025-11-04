@@ -25,6 +25,8 @@ public class HidInputSource : InputSource
     private readonly object _stateLock = new object();
     private bool _isConnected = false;
     private int _maxInputReportLength = 64; // Default
+    private DateTime _lastErrorLogTime = DateTime.MinValue;
+    private int _consecutiveErrors = 0;
 
     public override string Name => _device.GetProductName() ?? "Unknown HID Device";
     public override string DeviceType => "HID Device";

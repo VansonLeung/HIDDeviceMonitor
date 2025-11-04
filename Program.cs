@@ -19,7 +19,7 @@ class Program
         bool showMenu = args.Any(a => a == "-m" || a == "--menu");
         bool useKeyboard = args.Any(a => a.ToLower() == "keyboard" || a.ToLower() == "--keyboard");
         bool enableDamping = args.Any(a => a.ToLower() == "--damping");
-        bool enableWebSocket = false; //args.Any(a => a.ToLower() == "websocket" || a.ToLower() == "--websocket");
+        bool enableWebSocket = true; //args.Any(a => a.ToLower() == "websocket" || a.ToLower() == "--websocket");
         int webSocketPort = 8080;
 
         // Parse WebSocket port if specified
@@ -102,40 +102,42 @@ class Program
         var deviceList = DeviceList.Local;
         var devices = deviceList.GetHidDevices().ToArray();
 
+        MonitorAllDevices(devices, webSocketServer);
+
         // Look for Simagic device (VID: 0x0483, PID: 0x0522)
-        HidDevice? simagicDevice = null;
-        int deviceIndex = -1;
+        // HidDevice? simagicDevice = null;
+        // int deviceIndex = -1;
 
-        for (int i = 0; i < devices.Length; i++)
-        {
-            var device = devices[i];
-            if (device.VendorID == 0x0483 && device.ProductID == 0x0522)
-            {
-                simagicDevice = device;
-                deviceIndex = i;
-                break;
-            }
-        }
+        // for (int i = 0; i < devices.Length; i++)
+        // {
+        //     var device = devices[i];
+        //     if (device.VendorID == 0x0483 && device.ProductID == 0x0522)
+        //     {
+        //         simagicDevice = device;
+        //         deviceIndex = i;
+        //         break;
+        //     }
+        // }
 
-        if (simagicDevice == null)
-        {
-            Console.WriteLine("❌ No Simagic steering wheel found.");
-            Console.WriteLine("💡 Use 'HIDDeviceMonitor -m' to see all available devices and select manually.");
-            return;
-        }
+        // if (simagicDevice == null)
+        // {
+        //     Console.WriteLine("❌ No Simagic steering wheel found.");
+        //     Console.WriteLine("💡 Use 'HIDDeviceMonitor -m' to see all available devices and select manually.");
+        //     return;
+        // }
 
-        Console.WriteLine($"✅ Found Simagic device: {simagicDevice.GetProductName()}");
-        Console.WriteLine("🎮 Starting monitoring... (Press Ctrl+C to stop)\n");
+        // Console.WriteLine($"✅ Found Simagic device: {simagicDevice.GetProductName()}");
+        // Console.WriteLine("🎮 Starting monitoring... (Press Ctrl+C to stop)\n");
 
-        using var hidSource = new HidInputSource(simagicDevice, deviceIndex);
-        if (hidSource.InitializeAsync().Result)
-        {
-            MonitorInputSource(hidSource, false, webSocketServer);
-        }
-        else
-        {
-            Console.WriteLine("❌ Failed to initialize Simagic device.");
-        }
+        // using var hidSource = new HidInputSource(simagicDevice, deviceIndex);
+        // if (hidSource.InitializeAsync().Result)
+        // {
+        //     MonitorInputSource(hidSource, false, webSocketServer);
+        // }
+        // else
+        // {
+        //     Console.WriteLine("❌ Failed to initialize Simagic device.");
+        // }
     }
 
     static WebSocketServer? StartWebSocketServer(int preferredPort)
@@ -269,7 +271,7 @@ class Program
     static void MonitorInputSource(InputSource source, bool isKeyboardMode, WebSocketServer? webSocketServer = null)
     {
         var caps = source.GetCapabilities();
-        DisplayManager.ShowDeviceInfo(source, caps);
+        DisplayManager.ShowDeviceInfo(source, caps, false); // Initially not in debug mode
 
         var cancellationSource = new CancellationTokenSource();
         bool debugMode = false;
@@ -280,18 +282,29 @@ class Program
         {
             keyCheckTask = Task.Run(() =>
             {
-                var key = Console.ReadKey(true);
-                if (key.KeyChar == 'd' || key.KeyChar == 'D')
+                while (!cancellationSource.Token.IsCancellationRequested)
                 {
-                    debugMode = true;
-                    Console.Clear();
-                    Console.WriteLine("=== DEBUG MODE ACTIVATED ===");
-                    Console.WriteLine("Shows all bytes and their 16-bit interpretations\n");
-                    Console.WriteLine("Press any key to stop\n");
-                    Console.WriteLine(new string('─', 80));
-                    Console.ReadKey(true);
+                    var key = Console.ReadKey(true);
+                    if (key.KeyChar == 'd' || key.KeyChar == 'D')
+                    {
+                        debugMode = !debugMode; // Toggle debug mode
+                        if (debugMode)
+                        {
+                            Console.WriteLine("=== DEBUG MODE ACTIVATED ===");
+                            Console.WriteLine("Press 'd' again to exit debug mode, any other key to stop monitoring");
+                        }
+                        else
+                        {
+                            Console.WriteLine("=== DEBUG MODE DEACTIVATED ===");
+                        }
+                        Thread.Sleep(500); // Brief pause to show the message
+                    }
+                    else
+                    {
+                        cancellationSource.Cancel();
+                        break;
+                    }
                 }
-                cancellationSource.Cancel();
             });
         }
 
@@ -313,16 +326,19 @@ class Program
 
                 // Throttle updates to avoid flickering
                 var now = DateTime.Now;
-                if ((now - lastUpdateTime).TotalMilliseconds < 50)
+                if ((now - lastUpdateTime).TotalMilliseconds < 100) // Increased from 50ms
                 {
-                    Thread.Sleep(10);
+                    Thread.Sleep(20);
                     continue;
                 }
                 lastUpdateTime = now;
 
-                // Move cursor back to display start position
+                // Clear screen and redraw everything instead of cursor positioning
                 Console.SetCursorPosition(0, displayStartLine);
+                Console.WriteLine($"🕐 {now:HH:mm:ss.fff} | Device: {source.Name}{new string(' ', 30)}");
+                Console.WriteLine();
 
+                DisplayManager.ShowDeviceInfo(source, caps, debugMode);
                 DisplayManager.ShowInputState(state, caps, debugMode);
             }
             catch (Exception ex)

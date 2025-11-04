@@ -9,11 +9,15 @@ namespace HIDDeviceMonitor;
 /// </summary>
 public static class DisplayManager
 {
-    public static void ShowDeviceInfo(InputSource source, DeviceCapabilities caps)
+    public static void ShowDeviceInfo(InputSource source, DeviceCapabilities caps, bool debugMode = false)
     {
         Console.Clear();
         Console.WriteLine($"=== Monitoring: {source.Name} ===");
         Console.WriteLine($"Type: {source.DeviceType}");
+        if (debugMode)
+        {
+            Console.WriteLine("🔍 DEBUG MODE ACTIVE");
+        }
         if (!string.IsNullOrEmpty(caps.AdditionalInfo))
         {
             Console.WriteLine($"ℹ️  {caps.AdditionalInfo}");
