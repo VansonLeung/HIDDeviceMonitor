@@ -17,14 +17,18 @@ public class KeyboardInputSource : InputSource
     private readonly Dictionary<int, bool> _buttonStates = new();
     private bool _isRunning = false;
     private readonly bool _disableDamping;
+    private readonly int _increment;
+    private readonly int _decrement;
 
     public override string Name => "Keyboard Simulator";
     public override string DeviceType => "Virtual Device";
     public override bool IsConnected => _isRunning;
 
-    public KeyboardInputSource(bool disableDamping)
+    public KeyboardInputSource(bool disableDamping, int increment = 500, int decrement = 100)
     {
         _disableDamping = disableDamping;
+        _increment = increment;
+        _decrement = decrement;
         
         // Initialize button states
         for (int i = 0; i < 10; i++)
@@ -201,16 +205,17 @@ public class KeyboardInputSource : InputSource
         var key = keyInfo.Key;
         var keyChar = keyInfo.KeyChar;
 
-        int increment = !_disableDamping ? 2000 : 65535;
-        int decrement = !_disableDamping ? increment / 3 : 65535;
+        int increment = !_disableDamping ? _increment : 65535;
 
         switch (key)
         {
             case ConsoleKey.W:
                 _currentThrottle = Math.Min(65535, _currentThrottle + increment);
+                _currentBrake = Math.Max(0, _currentBrake - increment);
                 break;
             case ConsoleKey.S:
                 _currentBrake = Math.Min(65535, _currentBrake + increment);
+                _currentThrottle = Math.Max(0, _currentThrottle - increment);
                 break;
             case ConsoleKey.A:
                 _currentSteering = Math.Max(0, _currentSteering - (!_disableDamping ? increment : 10000));
@@ -241,7 +246,7 @@ public class KeyboardInputSource : InputSource
 
     private void ApplyDamping()
     {
-        int decrement = 667; // Slower release for smooth damping
+        int decrement = _decrement; // Slower release for smooth damping
 
         // Release throttle
         if (_currentThrottle > 0)

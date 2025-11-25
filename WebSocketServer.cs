@@ -117,10 +117,14 @@ public class WebSocketServer : IDisposable
     /// </summary>
     public async Task BroadcastInputDataAsync(InputState inputState, DeviceCapabilities capabilities)
     {
-        if (!_isRunning || _connectedClients.Count == 0)
+        WebSocket[] clients;
+        lock (_connectedClients)
         {
-            Console.WriteLine($"No connected clients to broadcast to. {_isRunning},  {_connectedClients.Count} ");
-            return;
+            if (!_isRunning || _connectedClients.Count == 0)
+            {
+                return;
+            }
+            clients = _connectedClients.ToArray();
         }
 
         // Convert InputState to the expected JSON format
@@ -131,7 +135,7 @@ public class WebSocketServer : IDisposable
         // Send to all connected clients
         var disconnectedClients = new List<WebSocket>();
 
-        foreach (var client in _connectedClients.ToArray())
+        foreach (var client in clients)
         {
             try
             {
@@ -151,9 +155,15 @@ public class WebSocketServer : IDisposable
         }
 
         // Remove disconnected clients
-        foreach (var client in disconnectedClients)
+        if (disconnectedClients.Count > 0)
         {
-            _connectedClients.Remove(client);
+            lock (_connectedClients)
+            {
+                foreach (var client in disconnectedClients)
+                {
+                    _connectedClients.Remove(client);
+                }
+            }
         }
     }
 

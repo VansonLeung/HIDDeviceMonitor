@@ -14,4 +14,6 @@ class ProgramConfig
     public int WebSocketPort { get; set; } = 8080;
     public WebSocketServer? WebSocketServer { get; set; }
     public bool DisableDamping { get; set; }
+    public int KeyboardIncrement { get; set; } = 8000;
+    public int KeyboardDecrement { get; set; } = 1000;
 }

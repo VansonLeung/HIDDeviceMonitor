@@ -76,7 +76,7 @@ static class ModeRunner
         Console.WriteLine("🎹 Keyboard Simulation Mode");
         Console.WriteLine($"Damping: {(_config.DisableDamping ? "Disabled" : "Enabled")}\n");
 
-        using var keyboardSource = new KeyboardInputSource(_config.DisableDamping);
+        using var keyboardSource = new KeyboardInputSource(_config.DisableDamping, _config.KeyboardIncrement, _config.KeyboardDecrement);
 
         if (!keyboardSource.InitializeAsync().Result)
         {
