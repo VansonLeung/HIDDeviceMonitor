@@ -413,33 +413,73 @@ public class WebSocketServer : IDisposable
         else
         {
             // Original racing wheel mapping
-            // Extract steering (X-axis) - try different possible names
+            
+            // Helper to normalize value to 0-65535
+            int Normalize(int value, int min, int max)
+            {
+                if (max <= min) return value;
+                double normalized = (double)(value - min) / (max - min);
+                if (normalized < 0) normalized = 0;
+                if (normalized > 1) normalized = 1;
+                return (int)(normalized * 65535);
+            }
+
+            // 1. Try to find by name
+            bool steeringFound = false;
+            bool throttleFound = false;
+            bool brakeFound = false;
+
             foreach (var kvp in inputState.Axes)
             {
-                if (kvp.Key.Contains("X-Axis") || kvp.Key.Contains("Steering"))
+                string name = kvp.Key;
+                var axisState = kvp.Value;
+                int val = Normalize(axisState.Value, axisState.MinValue, axisState.MaxValue);
+                
+                // Steering (usually X)
+                if (!steeringFound && (name == "X" || name.Contains("X-Axis") || name.Contains("Steering")))
                 {
-                    steering = kvp.Value.Value;
-                    break;
+                    steering = val;
+                    steeringFound = true;
+                }
+                // Throttle (usually Y or Accelerator)
+                else if (!throttleFound && (name == "Y" || name.Contains("Y-Axis") || name.Contains("Throttle") || name.Contains("Accelerator")))
+                {
+                    throttle = val;
+                    throttleFound = true;
+                }
+                // Brake (usually Z or Brake)
+                else if (!brakeFound && (name == "Z" || name.Contains("Z-Axis") || name.Contains("Brake")))
+                {
+                    brake = val;
+                    brakeFound = true;
                 }
             }
 
-            // Extract throttle (Y-axis)
-            foreach (var kvp in inputState.Axes)
+            // 2. Fallback to index if not found by name
+            if (!steeringFound || !throttleFound || !brakeFound)
             {
-                if (kvp.Key.Contains("Y-Axis") || kvp.Key.Contains("Throttle"))
+                // Get all axes sorted by index
+                var sortedAxes = capabilities.Axes.OrderBy(a => a.Index).ToList();
+                
+                if (!steeringFound && sortedAxes.Count > 0)
                 {
-                    throttle = kvp.Value.Value;
-                    break;
+                    var axisCap = sortedAxes[0];
+                    if (inputState.Axes.TryGetValue(axisCap.Name, out var axisState))
+                        steering = Normalize(axisState.Value, axisState.MinValue, axisState.MaxValue);
                 }
-            }
-
-            // Extract brake (Z-axis)
-            foreach (var kvp in inputState.Axes)
-            {
-                if (kvp.Key.Contains("Z-Axis") || kvp.Key.Contains("Brake"))
+                
+                if (!throttleFound && sortedAxes.Count > 1)
                 {
-                    brake = kvp.Value.Value;
-                    break;
+                    var axisCap = sortedAxes[1];
+                    if (inputState.Axes.TryGetValue(axisCap.Name, out var axisState))
+                        throttle = Normalize(axisState.Value, axisState.MinValue, axisState.MaxValue);
+                }
+                
+                if (!brakeFound && sortedAxes.Count > 2)
+                {
+                    var axisCap = sortedAxes[2];
+                    if (inputState.Axes.TryGetValue(axisCap.Name, out var axisState))
+                        brake = Normalize(axisState.Value, axisState.MinValue, axisState.MaxValue);
                 }
             }
         }

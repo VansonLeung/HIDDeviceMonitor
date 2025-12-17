@@ -202,6 +202,12 @@ static class ModeRunner
                     var caps = hidSource.GetCapabilities();
                     sources.Add((hidSource, caps));
                     Console.WriteLine($"✅ Opened device [{i}]: {hidSource.Name}");
+
+                    if (devices[i].VendorID == 0x054C && (devices[i].ProductID == 0x05C4 || devices[i].ProductID == 0x09CC))
+                    {
+                         Console.WriteLine($"   🎮 Sony DualShock 4 Controller detected!");
+                    }
+
                     Console.WriteLine($"   Buttons: {caps.TotalButtons}, Axes: {caps.TotalAxes} , {caps.AdditionalInfo}, {caps.DeviceType}, {caps.ProductName}");
                 }
             }

@@ -16,6 +16,12 @@ public static class DeviceClassifier
     /// </summary>
     public static DeviceType ClassifyDevice(HidDevice device, DeviceCapabilities capabilities)
     {
+        // Check for known vendors first
+        if (device.VendorID == 0x054C) // Sony
+        {
+             return DeviceType.Gamepad;
+        }
+
         // Classify based on HID usage specification
         return ClassifyByHIDSpecification(capabilities);
     }

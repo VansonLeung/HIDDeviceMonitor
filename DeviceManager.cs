@@ -18,6 +18,13 @@ static class DeviceManager
         return devices.FirstOrDefault(d => d.VendorID == 0x0483 && d.ProductID == 0x0522);
     }
 
+    public static HidDevice? FindDualShock4Device(HidDevice[] devices)
+    {
+        // Sony VID: 0x054C
+        // DS4 PIDs: 0x05C4 (Gen 1), 0x09CC (Gen 2)
+        return devices.FirstOrDefault(d => d.VendorID == 0x054C && (d.ProductID == 0x05C4 || d.ProductID == 0x09CC));
+    }
+
     public static List<InputSource> InitializeDevices(HidDevice[] devices)
     {
         var sources = new List<InputSource>();
