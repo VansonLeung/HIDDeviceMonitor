@@ -35,6 +35,10 @@ dotnet run [mode] [options]
 cd HIDDeviceMonitor && dotnet publish HIDDeviceMonitor.csproj -c Release -r win-x64 --self-contained true /property:GenerateFullPaths=true
 ```
 
+```bash
+cd HIDDeviceMonitor && dotnet publish HIDDeviceMonitor.csproj -c Release -r win-x64 --self-contained true /p:GenerateFullPaths=true /p:PublishSingleFile=true
+```
+
 ### Command Line Options
 
 - **Auto-connect Mode** (default): `dotnet run` - Automatically connects to first available Simagic steering wheel

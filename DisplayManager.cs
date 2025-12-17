@@ -11,50 +11,18 @@ public static class DisplayManager
 {
     public static void ShowDeviceInfo(InputSource source, DeviceCapabilities caps, bool debugMode = false)
     {
-        Console.Clear();
-        Console.WriteLine($"=== Monitoring: {source.Name} ===");
-        Console.WriteLine($"Type: {source.DeviceType}");
-        if (debugMode)
-        {
-            Console.WriteLine("🔍 DEBUG MODE ACTIVE");
-        }
+        Console.WriteLine($"=== {source.Name} ===");
+        Console.WriteLine($"Type: {source.DeviceType} | Buttons: {caps.TotalButtons} | Axes: {caps.TotalAxes}");
+
         if (!string.IsNullOrEmpty(caps.AdditionalInfo))
         {
-            Console.WriteLine($"ℹ️  {caps.AdditionalInfo}");
-        }
-        Console.WriteLine();
-
-        Console.WriteLine($"📊 Device Capabilities:");
-        Console.WriteLine($"   Buttons: {caps.TotalButtons}");
-        Console.WriteLine($"   Axes: {caps.TotalAxes}");
-
-        if (caps.Buttons.Count > 0)
-        {
-            Console.WriteLine($"\n🔘 Button Layout (first 32):");
-            for (int i = 0; i < Math.Min(32, caps.Buttons.Count); i++)
-            {
-                var btn = caps.Buttons[i];
-                if (i % 8 == 0 && i > 0) Console.WriteLine();
-                if (i % 8 == 0) Console.Write("   ");
-                Console.Write($"B{i + 1}:[{btn.ByteIndex}].{btn.BitIndex} ");
-            }
-            Console.WriteLine();
+            Console.WriteLine($"Info: {caps.AdditionalInfo}");
         }
 
-        if (caps.Axes.Count > 0)
-        {
-            Console.WriteLine($"\n🎮 Detected Axes:");
-            foreach (var axis in caps.Axes)
-            {
-                string bitInfo = axis.BitOffset != 0 || axis.BitSize % 8 != 0
-                    ? $"Byte[{axis.ByteIndex}] + {axis.BitOffset} bits, Size: {axis.BitSize} bits"
-                    : $"Bytes[{axis.ByteIndex}..{axis.ByteIndex + (axis.BitSize / 8) - 1}]";
-                Console.WriteLine($"   {axis.Name}: {axis.UsageName} (Range: {axis.LogicalMin} to {axis.LogicalMax}) - {bitInfo}");
-            }
-        }
-
-        Console.WriteLine("\n⌨️  Press 'd' for debug mode, any other key to stop monitoring\n");
-        Console.WriteLine(new string('─', 80));
+        Console.WriteLine(debugMode
+            ? "DEBUG MODE – raw bytes shown"
+            : "Press 'd' to toggle debug • Any other key to stop");
+        Console.WriteLine(new string('-', 60));
     }
 
     public static void ShowInputState(InputState state, DeviceCapabilities caps, bool debugMode = false)
@@ -71,133 +39,91 @@ public static class DisplayManager
 
     private static void ShowNormalMode(InputState state, DeviceCapabilities caps)
     {
-        Console.WriteLine($"🕐 Last Update: {state.Timestamp:HH:mm:ss.fff} | Data Size: {state.RawData.Length} bytes{new string(' ', 30)}");
-        Console.WriteLine();
-
+        Console.WriteLine($"Last Update: {state.Timestamp:HH:mm:ss.fff} • Payload: {state.RawData.Length} bytes");
         ShowButtons(state, caps);
-        Console.WriteLine();
-
         ShowAxes(state);
-        Console.WriteLine();
-
         ShowRawData(state.RawData);
-
-        // Clear remaining lines
-        for (int i = 0; i < 3; i++)
-        {
-            Console.WriteLine(new string(' ', 80));
-        }
     }
 
     private static void ShowButtons(InputState state, DeviceCapabilities caps)
     {
-        Console.WriteLine("🔘 BUTTONS:");
+        Console.Write("Buttons: ");
 
         if (caps.TotalButtons == 0)
         {
-            Console.WriteLine("   No buttons detected");
+            Console.WriteLine("none detected");
             return;
         }
 
         var pressedButtons = state.Buttons.Where(kvp => kvp.Value).Select(kvp => kvp.Key + 1).ToList();
+        string pressedInfo = pressedButtons.Count == 0
+            ? "none"
+            : string.Join(',', pressedButtons.Take(8).Select(b => $"B{b}"));
 
-        // Show pressed buttons
-        if (pressedButtons.Count > 0)
+        if (pressedButtons.Count > 8)
         {
-            Console.Write("   Pressed: ");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write(string.Join(", ", pressedButtons.Select(b => $"B{b}")));
-            Console.ResetColor();
-            Console.WriteLine($"{new string(' ', 50)}");
-        }
-        else
-        {
-            Console.WriteLine($"   None pressed{new string(' ', 60)}");
+            pressedInfo += ", ...";
         }
 
-        // Show grid of first 32 buttons
-        int displayCount = Math.Min(32, caps.TotalButtons);
-        if (displayCount > 0)
+        Console.WriteLine($"pressed [{pressedInfo}] | total {caps.TotalButtons}");
+
+        int slotCount = Math.Min(16, caps.TotalButtons);
+        if (slotCount == 0)
         {
-            Console.Write("   Status: ");
-            for (int i = 0; i < displayCount; i++)
-            {
-                if (i > 0 && i % 16 == 0)
-                {
-                    Console.WriteLine();
-                    Console.Write("           ");
-                }
-
-                bool pressed = state.Buttons.ContainsKey(i) && state.Buttons[i];
-
-                if (pressed)
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.Write($"[B{i + 1,2}]");
-                    Console.ResetColor();
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.Write($" B{i + 1,2} ");
-                    Console.ResetColor();
-                }
-            }
-            Console.WriteLine($"{new string(' ', 20)}");
+            return;
         }
 
-        Console.WriteLine($"   Total: {caps.TotalButtons} buttons (showing first {displayCount}){new string(' ', 30)}");
+        var compact = new char[slotCount];
+        for (int i = 0; i < slotCount; i++)
+        {
+            bool pressed = state.Buttons.TryGetValue(i, out bool value) && value;
+            compact[i] = pressed ? 'X' : '.';
+        }
+
+        Console.WriteLine($"         [{new string(compact)}] (first {slotCount})");
     }
 
     private static void ShowAxes(InputState state)
     {
-        Console.WriteLine("🎚️  AXES:");
+        Console.Write("Axes: ");
 
         if (state.Axes.Count == 0)
         {
-            Console.WriteLine("   No axes detected");
+            Console.WriteLine("none detected");
             return;
         }
 
-        foreach (var kvp in state.Axes.Take(10))
+        var axisLines = state.Axes.Take(5)
+            .Select(kvp => $"{kvp.Key}={kvp.Value.Value}")
+            .ToList();
+
+        Console.WriteLine(string.Join(" | ", axisLines));
+        if (state.Axes.Count > 5)
         {
-            var axis = kvp.Value;
-            string rangeInfo = axis.MaxValue != 0 ? $"({axis.MinValue}..{axis.MaxValue})" : "";
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write($"   {axis.Name,-20}");
-            Console.ResetColor();
-            Console.Write($": {axis.Value,6} {rangeInfo,-20} ");
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write($"bytes{axis.ByteInfo}");
-            Console.ResetColor();
-            Console.WriteLine($"{new string(' ', 5)}");
+            Console.WriteLine($"       (+{state.Axes.Count - 5} more axes)");
         }
-
-        Console.WriteLine($"   Total: {state.Axes.Count} axes{new string(' ', 50)}");
     }
 
     private static void ShowRawData(byte[] data)
     {
-        Console.WriteLine("📊 RAW DATA (non-zero bytes):");
-        Console.Write("   ");
+        Console.Write("Raw bytes: ");
 
-        int displayCount = 0;
-        for (int i = 0; i < data.Length && displayCount < 32; i++)
+        int shown = 0;
+        for (int i = 0; i < data.Length && shown < 16; i++)
         {
             if (data[i] != 0)
             {
-                Console.Write($"[{i}]=0x{data[i]:X2} ");
-                displayCount++;
+                Console.Write($"[{i}:{data[i]:X2}] ");
+                shown++;
             }
         }
 
-        if (displayCount == 0)
+        if (shown == 0)
         {
-            Console.Write("All zeros");
+            Console.Write("all zeros");
         }
 
-        Console.WriteLine(new string(' ', 50));
+        Console.WriteLine();
     }
 
     private static void ShowDebugMode(InputState state)
