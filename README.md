@@ -32,7 +32,7 @@ dotnet run [mode] [options]
 ### Building for Windows
 
 ```bash
-cd HIDDeviceMonitor && dotnet publish HIDDeviceMonitor.csproj -c Release -r win-x64 --self-contained true /property:GenerateFullPaths=true
+cd HIDDeviceMonitor && dotnet publish HIDDeviceMonitor.csproj -c Release -r win-x64 --self-contained twwasdrue /property:GenerateFullPaths=true
 ```
 
 ```bash
